@@ -1,5 +1,7 @@
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
 
 // Account class representing a bank account
 class Account {
@@ -26,22 +28,24 @@ class Account {
         return balance;
     }
 
-    public void deposit(double amount) {
+    public Optional<String> deposit(double amount) {
         balance += amount;
         System.out.println("Deposited $" + amount + " into account " + accountId);
+        return Optional.empty(); // Operation succeeded, return empty Optional
     }
 
-    public void withdraw(double amount) {
+    public Optional<String> withdraw(double amount) {
         if (balance >= amount) {
             balance -= amount;
             System.out.println("Withdrawn $" + amount + " from account " + accountId);
+            return Optional.empty(); // Operation succeeded, return empty Optional
         } else {
-            System.out.println("Insufficient funds in account " + accountId);
+            return Optional.of("Insufficient funds in account " + accountId);
         }
     }
 }
 
-// Main class // to manage accounts and transactions
+// Main class to manage accounts and transactions
 public class BankingApp {
     private Map<String, Account> accounts;
 
@@ -59,33 +63,41 @@ public class BankingApp {
         }
     }
 
-    public void transfer(String fromAccountId, String toAccountId, double amount) {
-        if (accounts.containsKey(fromAccountId) && accounts.containsKey(toAccountId)) {
-            Account fromAccount = accounts.get(fromAccountId);
-            Account toAccount = accounts.get(toAccountId);
-            
-            if (fromAccount.getBalance() >= amount) {
-                fromAccount.withdraw(amount);
-                toAccount.deposit(amount);
-                System.out.println("Transferred $" + amount + " from account " + fromAccountId + " to account " + toAccountId);
+    public Optional<String> transfer(String fromAccountId, String toAccountId, double amount) {
+        Optional<Account> optionalFromAccount = Optional.ofNullable(accounts.get(fromAccountId));
+        Optional<Account> optionalToAccount = Optional.ofNullable(accounts.get(toAccountId));
+
+        if (optionalFromAccount.isPresent() && optionalToAccount.isPresent()) {
+            Account fromAccount = optionalFromAccount.get();
+            Account toAccount = optionalToAccount.get();
+
+            Optional<String> withdrawalResult = fromAccount.withdraw(amount);
+            if (withdrawalResult.isEmpty()) {
+                Optional<String> depositResult = toAccount.deposit(amount);
+                if (depositResult.isEmpty()) {
+                    System.out.println("Transferred $" + amount + " from account " + fromAccountId + " to account " + toAccountId);
+                    return Optional.empty(); // Operation succeeded, return empty Optional
+                } else {
+                    return depositResult; // Return error message from deposit operation
+                }
             } else {
-                System.out.println("Insufficient funds in account " + fromAccountId + " for transfer.");
+                return withdrawalResult; // Return error message from withdraw operation
             }
         } else {
-            System.out.println("One or both accounts do not exist.");
+            return Optional.of("One or both accounts do not exist.");
         }
     }
 
-    public void deposit(String accountId, double amount) {
-        if (accounts.containsKey(accountId)) {
-            Account account = accounts.get(accountId);
-            account.deposit(amount);
+    public Optional<String> deposit(String accountId, double amount) {
+        Optional<Account> optionalAccount = Optional.ofNullable(accounts.get(accountId));
+
+        if (optionalAccount.isPresent()) {
+            Account account = optionalAccount.get();
+            return account.deposit(amount);
         } else {
-            System.out.println("Account " + accountId + " does not exist.");
+            return Optional.of("Account " + accountId + " does not exist.");
         }
     }
-
-
 
     // Main method to test the bank operations
     public static void main(String[] args) {
@@ -96,13 +108,22 @@ public class BankingApp {
         bank.createAccount("Jane Doe", "@janedoe", 500);
 
         // Deposit money
-        bank.deposit("@johndoe", 200);
+        Optional<String> depositResult = bank.deposit("@johndoe", 200);
+        depositResult.ifPresentOrElse(
+                System.out::println,
+                () -> System.out.println("Deposited $200 into account @johndoe")
+        );
 
         // Transfer money
-        bank.transfer("@johndoe", "@janedoe", 300);
+        Optional<String> transferResult = bank.transfer("@johndoe", "@janedoe", 300);
+        transferResult.ifPresentOrElse(
+                System.out::println,
+                () -> System.out.println("Transferred $300 from account @johndoe to account @janedoe")
+        );
 
         // Attempt transfer with insufficient funds
-        bank.transfer("@janedoe", "@johndoe", 1000); // This should fail
+        Optional<String> failedTransferResult = bank.transfer("@janedoe", "@johndoe", 1000);
+        failedTransferResult.ifPresent(System.out::println); // This should print an error message
 
         // Print final balances
         System.out.println("Final balances:");
@@ -110,4 +131,3 @@ public class BankingApp {
         System.out.println("Account @janedoe balance: $" + bank.accounts.get("@janedoe").getBalance());
     }
 }
-
